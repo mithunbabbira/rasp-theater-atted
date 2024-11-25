@@ -4,6 +4,20 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 from pyfingerprint.pyfingerprint import PyFingerprint
 from database import DatabaseManager
+from attendance import AttendanceManager
+import asyncio
+import gspread
+from datetime import datetime
+from oauth2client.service_account import ServiceAccountCredentials
+from typing import Optional
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+# Then you can access the variables like this:
+CREDS_FILE = os.getenv('GOOGLE_SHEETS_CREDS_FILE')
+SHEET_NAME = os.getenv('GOOGLE_SHEET_NAME')
 
 # Initialize fingerprint sensor
 def init_fingerprint():
@@ -32,6 +46,7 @@ Available commands:
 /search - Search for a fingerprint
 /delete - Delete a fingerprint
 /count - Show number of stored fingerprints
+/attendance - Mark attendance
 """
     await update.message.reply_text(commands)
 
@@ -170,6 +185,12 @@ async def count_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f'Operation failed! Error: {str(e)}')
 
+async def mark_attendance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    creds_path = '/home/mithun/Documents/atted/cerds/sheetcred.json'
+    attendance_mgr = AttendanceManager(context.bot, creds_path=creds_path)
+    success, message = await attendance_mgr.mark_attendance()
+    # No need to reply to the original message since all updates are sent to the specific chat
+
 def main():
     app = Application.builder().token("8056496155:AAHeKa-PoFjBCPxybCRTttICrBDQXkmo3SU").build()
 
@@ -189,6 +210,7 @@ def main():
     app.add_handler(CommandHandler('search', search_command))
     app.add_handler(CommandHandler('delete', delete_command))
     app.add_handler(CommandHandler('count', count_command))
+    app.add_handler(CommandHandler('attendance', mark_attendance_command))
 
     print('Bot started...')
     app.run_polling(poll_interval=1)
