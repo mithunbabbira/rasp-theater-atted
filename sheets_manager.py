@@ -5,7 +5,7 @@ from typing import Optional
 
 class SheetsManager:
     def __init__(self, credentials_file: str = '/home/mithun/Documents/atted/cerds/sheetcred.json', 
-                 sheet_name: str = 'Attendance_Records',
+                 sheet_name: str = 'Attendance_Records_c11',
                  admin_email: str = 'babbiraproject@gmail.com'):
         self.scope = [
             'https://spreadsheets.google.com/feeds',
@@ -22,17 +22,47 @@ class SheetsManager:
 
     def get_or_create_sheet(self):
         try:
+            # Try to open existing sheet
             spreadsheet = self.client.open(self.sheet_name)
             print("Found existing spreadsheet")
             return spreadsheet
+            
         except gspread.SpreadsheetNotFound:
             print("Creating new spreadsheet...")
-            spreadsheet = self.client.create(self.sheet_name)
-            sheet = spreadsheet.sheet1
-            
-            # Initialize with headers
-            sheet.update('A1:B1', [['Name', datetime.now().strftime('%Y-%m-%d')]])
-            return spreadsheet
+            try:
+                spreadsheet = self.client.create(self.sheet_name)
+                
+                # Share with admin email
+                spreadsheet.share(
+                    self.admin_email,
+                    perm_type='user',
+                    role='writer',
+                    notify=True,
+                    email_message='New attendance sheet has been shared with you'
+                )
+                
+                # Make it accessible to anyone with the link
+                spreadsheet.share(
+                    None,
+                    perm_type='anyone',
+                    role='writer',
+                    notify=False,
+                    with_link=True
+                )
+                
+                print(f"Granted editor access to {self.admin_email}")
+                print(f"Made spreadsheet accessible to anyone with the link")
+                
+                # Initialize the sheet with "Name" and today's date
+                sheet = spreadsheet.sheet1
+                today = datetime.now().strftime('%Y-%m-%d')
+                sheet.update('A1:B1', [['Name', today]])
+                
+                return spreadsheet
+                
+            except Exception as e:
+                print(f"Error creating spreadsheet: {str(e)}")
+                raise
 
     def record_attendance(self, name: str, phone: str, position: int) -> bool:
         try:
