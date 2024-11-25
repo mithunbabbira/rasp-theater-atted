@@ -38,6 +38,7 @@ class SheetsManager:
         try:
             sheet = self.spreadsheet.sheet1
             today = datetime.now().strftime('%Y-%m-%d')
+            current_time = datetime.now().strftime('%I:%M%p').lower()  # Format: 08:30pm
             
             # Get all values
             all_values = sheet.get_all_values()
@@ -50,18 +51,28 @@ class SheetsManager:
             # Get headers (first row)
             headers = all_values[0]
             
-            # If today's date is not in headers, add it
-            if today not in headers:
-                next_col = len(headers) + 1
-                sheet.update_cell(1, next_col, today)
+            # Find today's date column
+            date_col = None
+            if today in headers:
+                date_col = headers.index(today) + 1  # Convert to 1-based index
+            else:
+                # Add new date column if it doesn't exist
+                date_col = len(headers) + 1
+                sheet.update_cell(1, date_col, today)
             
             # Get all names (first column, excluding header)
             names = [row[0] for row in all_values[1:] if row]
             
-            # Find or add name
-            if name not in names:
-                next_row = len(all_values) + 1
-                sheet.update_cell(next_row, 1, name)
+            # Find or add name and get its row
+            if name in names:
+                name_row = names.index(name) + 2  # +2 because of 0-based index and header row
+            else:
+                name_row = len(all_values) + 1
+                sheet.update_cell(name_row, 1, name)
+            
+            # Mark attendance
+            attendance_value = f"present-{current_time}"
+            sheet.update_cell(name_row, date_col, attendance_value)
             
             return True
             
