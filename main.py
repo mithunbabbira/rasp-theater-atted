@@ -47,6 +47,7 @@ Available commands:
 /delete - Delete a fingerprint
 /count - Show number of stored fingerprints
 /attendance - Mark attendance
+/showabsent - Show users who haven't marked attendance today
 """
     await update.message.reply_text(commands)
 
@@ -191,6 +192,23 @@ async def mark_attendance_command(update: Update, context: ContextTypes.DEFAULT_
     success, message = await attendance_mgr.mark_attendance()
     # No need to reply to the original message since all updates are sent to the specific chat
 
+async def show_absent_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        absent_users = db.get_absent_users()
+        
+        if not absent_users:
+            await update.message.reply_text("No absent users today! 🎉")
+            return
+        
+        message = "Users absent today:\n"
+        for i, (_, name) in enumerate(absent_users, 1):
+            message += f"{i}. {name}\n"
+        
+        await update.message.reply_text(message)
+        
+    except Exception as e:
+        await update.message.reply_text(f"Error: {str(e)}")
+
 def main():
     app = Application.builder().token("8056496155:AAHeKa-PoFjBCPxybCRTttICrBDQXkmo3SU").build()
 
@@ -211,6 +229,7 @@ def main():
     app.add_handler(CommandHandler('delete', delete_command))
     app.add_handler(CommandHandler('count', count_command))
     app.add_handler(CommandHandler('attendance', mark_attendance_command))
+    app.add_handler(CommandHandler('showabsent', show_absent_command))
 
     print('Bot started...')
     app.run_polling(poll_interval=1)

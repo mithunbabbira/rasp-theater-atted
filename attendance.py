@@ -62,6 +62,9 @@ class AttendanceManager:
                     name, phone = user
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
+                    # Update last present date in database
+                    self.db.update_last_present_date(position_number)
+                    
                     # Record to Google Sheets
                     sheets_success = self.sheets.record_attendance(
                         name=name,
