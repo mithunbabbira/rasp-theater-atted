@@ -12,7 +12,10 @@ class AttendanceManager:
         self.f = self.init_fingerprint()
         self.bot = bot
         self.CHAT_ID = -4552090363  # Hardcoded chat ID
-        self.sheets = SheetsManager(credentials_file=creds_path)  # Pass the correct path
+        self.sheets = SheetsManager(
+            credentials_file=creds_path,
+            worksheet_index=1  # Use the first worksheet
+        )
 
     def init_fingerprint(self):
         try:
