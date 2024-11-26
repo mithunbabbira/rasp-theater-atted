@@ -1,5 +1,6 @@
+import threading
 import time
-import tempfile
+from queue import Queue
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 from pyfingerprint.pyfingerprint import PyFingerprint
@@ -12,6 +13,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from typing import Optional
 from dotenv import load_dotenv
 import os
+import requests
 
 load_dotenv()
 
@@ -209,8 +211,47 @@ async def show_absent_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         await update.message.reply_text(f"Error: {str(e)}")
 
+class ReminderThread(threading.Thread):
+    def __init__(self, bot):
+        super().__init__(daemon=True)
+        self.bot = bot
+        self._stop_event = threading.Event()
+        self._queue = Queue()
+        self.token = bot.token  # Store the bot token
+
+    def stop(self):
+        self._stop_event.set()
+
+    def run(self):
+        while not self._stop_event.is_set():
+            try:
+                # Send message using requests
+                url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+                data = {
+                    "chat_id": -4552090363,
+                    "text": "Please give your attendance"
+                }
+                response = requests.post(url, json=data)
+                response.raise_for_status()  # Raise an exception for bad status codes
+            except Exception as e:
+                print(f"Failed to send reminder: {e}")
+            
+            # Sleep with interruption check
+            for _ in range(10):
+                if self._stop_event.is_set():
+                    break
+                time.sleep(1)
+
 def main():
-    app = Application.builder().token("8056496155:AAHeKa-PoFjBCPxybCRTttICrBDQXkmo3SU").build()
+    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    
+    # Validate token
+    if not token:
+        raise ValueError("No token found! Make sure TELEGRAM_BOT_TOKEN is set in your .env file")
+    
+    print(f"Token loaded: {token[:10]}...") # Print first 10 chars to verify
+    
+    app = Application.builder().token(token).build()
 
     # Create conversation handler for enrollment
     conv_handler = ConversationHandler(
@@ -224,15 +265,25 @@ def main():
 
     # Add command handlers
     app.add_handler(CommandHandler('start', start_command))
-    app.add_handler(conv_handler)  # Add the conversation handler
+    app.add_handler(conv_handler)
     app.add_handler(CommandHandler('search', search_command))
     app.add_handler(CommandHandler('delete', delete_command))
     app.add_handler(CommandHandler('count', count_command))
     app.add_handler(CommandHandler('attendance', mark_attendance_command))
     app.add_handler(CommandHandler('showabsent', show_absent_command))
 
-    print('Bot started...')
-    app.run_polling(poll_interval=1)
+    # Create and start the reminder thread
+    reminder = ReminderThread(app.bot)
+    reminder.start()
+
+    try:
+        print('Bot started...')
+        app.run_polling(poll_interval=1)
+    finally:
+        reminder.stop()
+        reminder.join(timeout=5)
 
 if __name__ == '__main__':
+    # Make sure .env is loaded before main()
+    load_dotenv()
     main()
