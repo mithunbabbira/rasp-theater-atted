@@ -3,12 +3,33 @@ from datetime import datetime
 from oauth2client.service_account import ServiceAccountCredentials
 from typing import Optional
 from gspread.exceptions import WorksheetNotFound
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def get_env_variable(var_name: str, default: Optional[str] = None) -> str:
+    value = os.getenv(var_name, default)
+    if value is None:
+        raise ValueError(f"Environment variable '{var_name}' is not set. Please check your .env file.")
+    return value
+
+# Validate environment variables at module level
+try:
+    WORKSHEET_INDEX = int(get_env_variable('WORKSHEET_INDEX', '0'))
+    SHEET_NAME = get_env_variable('SHEET_NAME', 'Attendance_Records')
+except ValueError as e:
+    print(f"Configuration Error: {e}")
+    print("Please make sure the following environment variables are set correctly:")
+    print("- WORKSHEET_INDEX (must be a valid integer)")
+    print("- SHEET_NAME")
+    exit(1)
 
 class SheetsManager:
     def __init__(self, credentials_file: str = '/home/mithun/Documents/atted/cerds/sheetcred.json', 
-                 sheet_name: str = 'Attendance_Records',
+                 sheet_name: Optional[str] = None,
                  admin_email: str = 'babbiraproject@gmail.com',
-                 worksheet_index: int = 1):
+                 worksheet_index: Optional[int] = None):
         self.scope = [
             'https://spreadsheets.google.com/feeds',
             'https://www.googleapis.com/auth/spreadsheets',
@@ -17,12 +38,16 @@ class SheetsManager:
         ]
         self.creds = ServiceAccountCredentials.from_json_keyfile_name(credentials_file, self.scope)
         self.client = gspread.authorize(self.creds)
-        self.sheet_name = sheet_name
+        
+        # Use environment variables with fallbacks
+        self.sheet_name = sheet_name or SHEET_NAME
         self.admin_email = admin_email
-        self.worksheet_index = worksheet_index
+        self.worksheet_index = worksheet_index if worksheet_index is not None else WORKSHEET_INDEX
+        
         self.spreadsheet = self.get_or_create_sheet()
         self.worksheet = self.get_or_create_worksheet()
-        print(f"Using worksheet index: {worksheet_index}")
+        print(f"Using worksheet index: {self.worksheet_index}")
+        print(f"Using sheet name: {self.sheet_name}")
         print(f"Spreadsheet URL: {self.spreadsheet.url}")
 
     def get_or_create_worksheet(self):

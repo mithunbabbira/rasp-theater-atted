@@ -15,10 +15,14 @@ class AttendanceManager:
         self.db = DatabaseManager()
         self.f = self.init_fingerprint()
         self.bot = bot
-        self.CHAT_ID = int(os.getenv('GROUP_CHAT_ID'))  # Use env variable
+        self.CHAT_ID = int(os.getenv('GROUP_CHAT_ID'))
+        
+        # Get worksheet index from env
+        worksheet_index = int(os.getenv('WORKSHEET_INDEX', '0'))  # Default to 0 if not set
+        
         self.sheets = SheetsManager(
             credentials_file=creds_path,
-            worksheet_index=1  # Use the first worksheet
+            worksheet_index=worksheet_index
         )
 
     def init_fingerprint(self):
