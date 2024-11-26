@@ -17,9 +17,29 @@ import requests
 
 load_dotenv()
 
-# Then you can access the variables like this:
-CREDS_FILE = os.getenv('GOOGLE_SHEETS_CREDS_FILE')
-SHEET_NAME = os.getenv('GOOGLE_SHEET_NAME')
+# Add validation for required environment variables
+def get_env_variable(var_name: str) -> str:
+    value = os.getenv(var_name)
+    if value is None:
+        raise ValueError(f"Environment variable '{var_name}' is not set. Please check your .env file.")
+    return value
+
+# Get and validate environment variables
+try:
+    CREDS_FILE = get_env_variable('GOOGLE_SHEETS_CREDS_FILE')
+    SHEET_NAME = get_env_variable('GOOGLE_SHEET_NAME')
+    GROUP_CHAT_ID = int(get_env_variable('GROUP_CHAT_ID'))
+except ValueError as e:
+    print(f"Configuration Error: {e}")
+    print("Please make sure all required environment variables are set in your .env file:")
+    print("- GOOGLE_SHEETS_CREDS_FILE")
+    print("- GOOGLE_SHEET_NAME")
+    print("- GROUP_CHAT_ID")
+    exit(1)
+except ValueError as e:
+    print(f"Invalid GROUP_CHAT_ID: {e}")
+    print("GROUP_CHAT_ID must be a valid integer")
+    exit(1)
 
 # Initialize fingerprint sensor
 def init_fingerprint():
@@ -217,7 +237,8 @@ class ReminderThread(threading.Thread):
         self.bot = bot
         self._stop_event = threading.Event()
         self._queue = Queue()
-        self.token = bot.token  # Store the bot token
+        self.token = bot.token
+        self.chat_id = GROUP_CHAT_ID  # Use the env variable
 
     def stop(self):
         self._stop_event.set()
@@ -225,18 +246,16 @@ class ReminderThread(threading.Thread):
     def run(self):
         while not self._stop_event.is_set():
             try:
-                # Send message using requests
                 url = f"https://api.telegram.org/bot{self.token}/sendMessage"
                 data = {
-                    "chat_id": -4552090363,
+                    "chat_id": self.chat_id,  # Use the class variable
                     "text": "Please give your attendance"
                 }
                 response = requests.post(url, json=data)
-                response.raise_for_status()  # Raise an exception for bad status codes
+                response.raise_for_status()
             except Exception as e:
                 print(f"Failed to send reminder: {e}")
             
-            # Sleep with interruption check
             for _ in range(10):
                 if self._stop_event.is_set():
                     break

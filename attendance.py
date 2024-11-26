@@ -5,13 +5,17 @@ from database import DatabaseManager
 from telegram.ext import ContextTypes
 from telegram import Bot
 from sheets_manager import SheetsManager
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class AttendanceManager:
     def __init__(self, bot: Bot, creds_path: str = '/home/mithun/Documents/atted/cerds/sheetcred.json'):
         self.db = DatabaseManager()
         self.f = self.init_fingerprint()
         self.bot = bot
-        self.CHAT_ID = -4552090363  # Hardcoded chat ID
+        self.CHAT_ID = int(os.getenv('GROUP_CHAT_ID'))  # Use env variable
         self.sheets = SheetsManager(
             credentials_file=creds_path,
             worksheet_index=1  # Use the first worksheet
