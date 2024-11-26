@@ -238,25 +238,42 @@ class ReminderThread(threading.Thread):
         self._stop_event = threading.Event()
         self._queue = Queue()
         self.token = bot.token
-        self.chat_id = GROUP_CHAT_ID  # Use the env variable
+        self.chat_id = GROUP_CHAT_ID
+        self.db = DatabaseManager()
 
-    def stop(self):
-        self._stop_event.set()
+    def get_random_user(self):
+        try:
+            random_user = self.db.get_random_user()
+            if random_user:
+                name, _ = random_user
+                return name
+            return None
+        except Exception as e:
+            print(f"Error getting random user: {e}")
+            return None
 
     def run(self):
         while not self._stop_event.is_set():
             try:
+                user_name = self.get_random_user()
+                
+                message_text = (
+                    f"{user_name}, Please give your attendance"
+                    if user_name
+                    else "Please give your attendance"
+                )
+
                 url = f"https://api.telegram.org/bot{self.token}/sendMessage"
                 data = {
-                    "chat_id": self.chat_id,  # Use the class variable
-                    "text": "Please give your attendance"
+                    "chat_id": self.chat_id,
+                    "text": message_text
                 }
                 response = requests.post(url, json=data)
                 response.raise_for_status()
             except Exception as e:
                 print(f"Failed to send reminder: {e}")
             
-            for _ in range(10):
+            for _ in range(30):
                 if self._stop_event.is_set():
                     break
                 time.sleep(1)
