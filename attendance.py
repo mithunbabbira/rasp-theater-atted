@@ -16,6 +16,7 @@ class AttendanceManager:
         self.f = self.init_fingerprint()
         self.bot = bot
         self.CHAT_ID = int(os.getenv('GROUP_CHAT_ID'))
+        self.ADMIN_ID = int(os.getenv('ADMIN_ID')) 
         
         # Get worksheet index from env
         worksheet_index = int(os.getenv('WORKSHEET_INDEX', '0'))  # Default to 0 if not set
@@ -137,14 +138,14 @@ class AttendanceManager:
                             await self.bot.send_message(chat_id=self.CHAT_ID, text=msg)
                             return True, msg
                     else:
-                        msg = "Fingerprint does not match the expected user"
-                        await self.bot.send_message(chat_id=self.CHAT_ID, text=msg)
+                        msg = f"{name} fingerprint did not match"
+                        await self.bot.send_message(chat_id=self.ADMIN_ID, text=msg)
                         return False, msg
 
                     time.sleep(0.1)
 
-            msg = "Timeout: No finger detected"
-            await self.bot.send_message(chat_id=self.CHAT_ID, text=msg)
+            msg =f"{name} Did not scan fingerprint"
+            await self.bot.send_message(chat_id=self.ADMIN_ID, text=msg)
             return False, msg
 
         except Exception as e:
