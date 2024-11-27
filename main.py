@@ -239,14 +239,15 @@ class ReminderThread(threading.Thread):
         self._queue = Queue()
         self.token = bot.token
         self.chat_id = GROUP_CHAT_ID
+        self.admin_id = int(os.getenv('ADMIN_ID'))
         self.db = DatabaseManager(db_name="fingerprint.db")
 
-    def send_telegram_message(self, text: str):
+    def send_telegram_message(self, text: str, chat_id: Optional[int] = None):
         """Synchronous method to send telegram message"""
         try:
             url = f"https://api.telegram.org/bot{self.token}/sendMessage"
             data = {
-                "chat_id": self.chat_id,
+                "chat_id": chat_id or self.chat_id,
                 "text": text
             }
             response = requests.post(url, json=data)
@@ -261,9 +262,9 @@ class ReminderThread(threading.Thread):
         try:
             f = PyFingerprint('/dev/ttyAMA0', 57600, 0xFFFFFFFF, 0x00000000)
             if not f.verifyPassword():
+                self.send_telegram_message("Fingerprint sensor initialization failed")
                 return False, "Fingerprint sensor initialization failed"
 
-            # Wait for finger with timeout
             start_time = time.time()
             timeout = 20  # 20 seconds timeout
             
@@ -276,22 +277,43 @@ class ReminderThread(threading.Thread):
                     position_number = result[0]
 
                     if position_number == -1:
-                        return False, "No matching fingerprint found"
+                        msg = "No matching fingerprint found wrong finge   "
+                        self.send_telegram_message(msg, self.admin_id)
+                        return False, msg
 
                     if position_number == user_position:
                         user = self.db.get_user(position_number)
                         if user:
                             name, _ = user
-                            return True, f"Attendance verified for {name}"
+                            msg = f"Attendance verified for {name}"
+                            self.send_telegram_message(msg)
+                            return True, msg
                     else:
-                        return False, "Fingerprint does not match the expected user"
+                        # Send mismatch message to admin group
+                        user = self.db.get_user(user_position)
+                        expected_name = user[0] if user else "Unknown"
+                        admin_msg = f"{expected_name}  fingerprint did not match"
+                        self.send_telegram_message(admin_msg, self.admin_id)
+                        
+                        # Send generic message to main group
+                        group_msg =f"{expected_name}  fingerprint did not match"
+                        self.send_telegram_message(group_msg)
+                        return False, group_msg
 
                 time.sleep(0.1)
-
-            return False, "Timeout: No finger detected"
+            user = self.db.get_user(user_position)
+            if user:
+                name, _ = user
+                msg = f"{name} did not scan fingerprint"
+            else:
+                msg = "User did not scan fingerprint"
+            self.send_telegram_message(msg, self.admin_id)
+            return False, msg
 
         except Exception as e:
-            return False, f"Error: {str(e)}"
+            msg = f"Error: {str(e)}"
+            self.send_telegram_message(msg, self.admin_id)
+            return False, msg
 
     def get_random_user(self):
         """Get random user with debug logging"""
