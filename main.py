@@ -8,12 +8,13 @@ from database import DatabaseManager
 from attendance import AttendanceManager
 import asyncio
 import gspread
-from datetime import datetime
+from datetime import datetime, time as datetime_time
 from oauth2client.service_account import ServiceAccountCredentials
 from typing import Optional
 from dotenv import load_dotenv
 import os
 import requests
+import time as time_sleep
 
 load_dotenv()
 
@@ -241,6 +242,15 @@ class ReminderThread(threading.Thread):
         self.chat_id = GROUP_CHAT_ID
         self.admin_id = int(os.getenv('ADMIN_ID'))
         self.db = DatabaseManager(db_name="fingerprint.db")
+        
+        # Define operating hours using datetime.time
+        self.START_TIME = datetime_time(10, 0)  # 10:00 AM
+        self.END_TIME = datetime_time(22, 0)    # 10:00 PM
+
+    def is_operating_hours(self) -> bool:
+        """Check if current time is within operating hours"""
+        current_time = datetime.now().time()
+        return self.START_TIME <= current_time <= self.END_TIME
 
     def send_telegram_message(self, text: str, chat_id: Optional[int] = None):
         """Synchronous method to send telegram message"""
@@ -266,7 +276,7 @@ class ReminderThread(threading.Thread):
                 return False, "Fingerprint sensor initialization failed"
 
             start_time = time.time()
-            timeout = 20  # 20 seconds timeout
+            timeout = 300  # 20 seconds timeout
             
             self.send_telegram_message("Waiting for finger...")
             
@@ -286,7 +296,6 @@ class ReminderThread(threading.Thread):
                         if user:
                             name, _ = user
                             msg = f"Attendance verified for {name}"
-                            self.send_telegram_message(msg)
                             return True, msg
                     else:
                         # Send mismatch message to admin group
@@ -343,11 +352,17 @@ class ReminderThread(threading.Thread):
     def run(self):
         while not self._stop_event.is_set():
             try:
+                # Check if we're within operating hours
+                if not self.is_operating_hours():
+                    # Sleep for 1 minute if outside operating hours
+                    time_sleep.sleep(60)
+                    continue
+
                 print("\nAttempting to get random user...")
                 user_name, user_position = self.get_random_user()
                 
                 if user_name is not None and user_position is not None:
-                    message_text = f"{user_name}, Please give your attendance"
+                    message_text = f"::::{user_name}:::: Please give your attendance"
                     print(f"Sending message: {message_text}")
                     self.send_telegram_message(message_text)
 
@@ -363,11 +378,11 @@ class ReminderThread(threading.Thread):
             except Exception as e:
                 print(f"Failed to process reminder: {e}")
             
-            # Wait for next cycle
+            # Wait for next cycle (30 seconds)
             for _ in range(30):
                 if self._stop_event.is_set():
                     break
-                time.sleep(1)
+                time_sleep.sleep(60)
 
     def stop(self):
         self._stop_event.set()
