@@ -100,3 +100,54 @@ class AttendanceManager:
             msg = f"Error: {str(e)}"
             await self.bot.send_message(chat_id=self.CHAT_ID, text=msg)
             return False, msg 
+
+    async def verify_attendance(self, user_position: int) -> tuple[bool, str]:
+        """
+        Verify if the scanned fingerprint matches the given user position
+        Returns: (success_status, message)
+        """
+        if not self.f:
+            await self.bot.send_message(chat_id=self.CHAT_ID, text="Fingerprint sensor not initialized")
+            return False, "Fingerprint sensor not initialized"
+
+        start_time = time.time()
+        await self.bot.send_message(chat_id=self.CHAT_ID, text="Waiting for finger...")
+
+        try:
+            # Wait for finger or timeout
+            while time.time() - start_time < 20:  # 20 seconds timeout
+                if self.f.readImage():
+                    # Convert and search
+                    self.f.convertImage(0x01)
+                    result = self.f.searchTemplate()
+                    position_number = result[0]
+
+                    if position_number == -1:
+                        msg = "No matching fingerprint found"
+                        await self.bot.send_message(chat_id=self.CHAT_ID, text=msg)
+                        return False, msg
+
+                    # Compare with expected position
+                    if position_number == user_position:
+                        # Get user name from database
+                        user = self.db.get_user(position_number)
+                        if user:
+                            name, _ = user
+                            msg = f"Attendance marked for {name}"
+                            await self.bot.send_message(chat_id=self.CHAT_ID, text=msg)
+                            return True, msg
+                    else:
+                        msg = "Fingerprint does not match the expected user"
+                        await self.bot.send_message(chat_id=self.CHAT_ID, text=msg)
+                        return False, msg
+
+                    time.sleep(0.1)
+
+            msg = "Timeout: No finger detected"
+            await self.bot.send_message(chat_id=self.CHAT_ID, text=msg)
+            return False, msg
+
+        except Exception as e:
+            msg = f"Error: {str(e)}"
+            await self.bot.send_message(chat_id=self.CHAT_ID, text=msg)
+            return False, msg 

@@ -100,18 +100,35 @@ class DatabaseManager:
             print(f"Error getting absent users: {e}")
             return []
 
-    def get_random_user(self) -> Optional[Tuple[str, str]]:
-        """Get a random user from the database"""
+    def get_random_user(self) -> Optional[Tuple[str, int]]:
+        """Get a random user name and position from the database"""
         try:
+            # First check if we have any users
+            self.cursor.execute("SELECT COUNT(*) FROM users")
+            count = self.cursor.fetchone()[0]
+            
+            if count == 0:
+                print("No users in database")
+                return None
+            
+            # Get random user
             self.cursor.execute("""
-                SELECT name, phone 
+                SELECT name, position 
                 FROM users 
                 ORDER BY RANDOM() 
                 LIMIT 1
             """)
-            return self.cursor.fetchone()
+            result = self.cursor.fetchone()
+            
+            if result:
+                print(f"Found user: {result[0]} at position {result[1]}")
+            else:
+                print("No user found despite count > 0")
+            
+            return result
+            
         except Exception as e:
-            print(f"Error getting random user: {e}")
+            print(f"Error getting random user from database: {e}")
             return None
 
     def __del__(self):

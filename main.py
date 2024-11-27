@@ -239,44 +239,116 @@ class ReminderThread(threading.Thread):
         self._queue = Queue()
         self.token = bot.token
         self.chat_id = GROUP_CHAT_ID
-        self.db = DatabaseManager()
+        self.db = DatabaseManager(db_name="fingerprint.db")
+
+    def send_telegram_message(self, text: str):
+        """Synchronous method to send telegram message"""
+        try:
+            url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+            data = {
+                "chat_id": self.chat_id,
+                "text": text
+            }
+            response = requests.post(url, json=data)
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            print(f"Failed to send message: {e}")
+            return False
+
+    def verify_fingerprint(self, user_position: int) -> tuple[bool, str]:
+        """Synchronous method to verify fingerprint"""
+        try:
+            f = PyFingerprint('/dev/ttyAMA0', 57600, 0xFFFFFFFF, 0x00000000)
+            if not f.verifyPassword():
+                return False, "Fingerprint sensor initialization failed"
+
+            # Wait for finger with timeout
+            start_time = time.time()
+            timeout = 20  # 20 seconds timeout
+            
+            self.send_telegram_message("Waiting for finger...")
+            
+            while time.time() - start_time < timeout:
+                if f.readImage():
+                    f.convertImage(0x01)
+                    result = f.searchTemplate()
+                    position_number = result[0]
+
+                    if position_number == -1:
+                        return False, "No matching fingerprint found"
+
+                    if position_number == user_position:
+                        user = self.db.get_user(position_number)
+                        if user:
+                            name, _ = user
+                            return True, f"Attendance verified for {name}"
+                    else:
+                        return False, "Fingerprint does not match the expected user"
+
+                time.sleep(0.1)
+
+            return False, "Timeout: No finger detected"
+
+        except Exception as e:
+            return False, f"Error: {str(e)}"
 
     def get_random_user(self):
+        """Get random user with debug logging"""
         try:
-            random_user = self.db.get_random_user()
+            db = DatabaseManager(db_name="fingerprint.db")
+            
+            # Debug: Print total users
+            db.cursor.execute("SELECT COUNT(*) FROM users")
+            total_users = db.cursor.fetchone()[0]
+            print(f"Total users in database: {total_users}")
+            
+            # Get random user
+            random_user = db.get_random_user()
+            
             if random_user:
-                name, _ = random_user
-                return name
-            return None
+                name, position = random_user
+                print(f"Selected random user: {name} (position: {position})")
+                return name, position
+            else:
+                print("No user found in database")
+                return None, None
+                
         except Exception as e:
-            print(f"Error getting random user: {e}")
-            return None
+            print(f"Error in get_random_user: {e}")
+            return None, None
 
     def run(self):
         while not self._stop_event.is_set():
             try:
-                user_name = self.get_random_user()
+                print("\nAttempting to get random user...")
+                user_name, user_position = self.get_random_user()
                 
-                message_text = (
-                    f"{user_name}, Please give your attendance"
-                    if user_name
-                    else "Please give your attendance"
-                )
+                if user_name is not None and user_position is not None:
+                    message_text = f"{user_name}, Please give your attendance"
+                    print(f"Sending message: {message_text}")
+                    self.send_telegram_message(message_text)
 
-                url = f"https://api.telegram.org/bot{self.token}/sendMessage"
-                data = {
-                    "chat_id": self.chat_id,
-                    "text": message_text
-                }
-                response = requests.post(url, json=data)
-                response.raise_for_status()
+                    # Verify fingerprint
+                    success, message = self.verify_fingerprint(user_position)
+                    
+                    # Send result message
+                    self.send_telegram_message(message)
+                else:
+                    print("No valid user found, sending default message")
+                    self.send_telegram_message("Please give your attendance")
+                
             except Exception as e:
-                print(f"Failed to send reminder: {e}")
+                print(f"Failed to process reminder: {e}")
             
+            # Wait for next cycle
             for _ in range(30):
                 if self._stop_event.is_set():
                     break
                 time.sleep(1)
+
+    def stop(self):
+        self._stop_event.set()
 
 def main():
     token = os.getenv('TELEGRAM_BOT_TOKEN')
