@@ -243,6 +243,10 @@ class ReminderThread(threading.Thread):
         self.admin_id = int(os.getenv('ADMIN_ID'))
         self.db = DatabaseManager(db_name="fingerprint.db")
         
+        # Get fingerprint timeout from env with fallback
+        self.fingerprint_timeout = int(os.getenv('FINGERPRINT_WAIT_TIME', '300'))
+        self.random_attendance_interval = int(os.getenv('RANDOM_ATTENDANCE_INTERVAL', '30'))
+        
         # Define operating hours using datetime.time
         self.START_TIME = datetime_time(10, 0)  # 10:00 AM
         self.END_TIME = datetime_time(22, 0)    # 10:00 PM
@@ -275,19 +279,19 @@ class ReminderThread(threading.Thread):
                 self.send_telegram_message("Fingerprint sensor initialization failed")
                 return False, "Fingerprint sensor initialization failed"
 
-            start_time = time.time()
-            timeout = 300  # 20 seconds timeout
+            start_time = time_sleep.time()
+            timeout = self.fingerprint_timeout  # Use the timeout from env
             
             self.send_telegram_message("Waiting for finger...")
             
-            while time.time() - start_time < timeout:
+            while time_sleep.time() - start_time < timeout:
                 if f.readImage():
                     f.convertImage(0x01)
                     result = f.searchTemplate()
                     position_number = result[0]
 
                     if position_number == -1:
-                        msg = "No matching fingerprint found wrong finge   "
+                        msg = "No matching fingerprint found wrong fingerprint"
                         self.send_telegram_message(msg, self.admin_id)
                         return False, msg
 
@@ -378,8 +382,7 @@ class ReminderThread(threading.Thread):
             except Exception as e:
                 print(f"Failed to process reminder: {e}")
             
-            # Wait for next cycle (30 seconds)
-            for _ in range(30):
+            for _ in range(self.random_attendance_interval):
                 if self._stop_event.is_set():
                     break
                 time_sleep.sleep(60)
