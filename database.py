@@ -101,27 +101,34 @@ class DatabaseManager:
             return []
 
     def get_random_user(self) -> Optional[Tuple[str, int]]:
-        """Get a random user name and position from the database"""
+        """Get a random user who has marked attendance today"""
         try:
-            # First check if we have any users
-            self.cursor.execute("SELECT COUNT(*) FROM users")
+            current_date = datetime.now().strftime('%Y-%m-%d')
+            
+            # First check if we have any users who have marked attendance today
+            self.cursor.execute("""
+                SELECT COUNT(*) 
+                FROM users 
+                WHERE last_present_date = ?
+            """, (current_date,))
             count = self.cursor.fetchone()[0]
             
             if count == 0:
-                print("No users in database")
+                print("No users have marked attendance today")
                 return None
             
-            # Get random user
+            # Get random user who has marked attendance today
             self.cursor.execute("""
                 SELECT name, position 
                 FROM users 
+                WHERE last_present_date = ?
                 ORDER BY RANDOM() 
                 LIMIT 1
-            """)
+            """, (current_date,))
             result = self.cursor.fetchone()
             
             if result:
-                print(f"Found user: {result[0]} at position {result[1]}")
+                print(f"Found user: {result[0]} at position {result[1]} who has marked attendance today")
             else:
                 print("No user found despite count > 0")
             
