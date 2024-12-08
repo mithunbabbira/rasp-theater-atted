@@ -1,0 +1,7 @@
+pyfingerprint==1.5
+pyserial==3.5
+gspread==6.1.4
+google-auth==2.36.0
+google-auth-oauthlib==1.2.1
+oauth2client==4.1.3
+python-dotenv==1.0.1
